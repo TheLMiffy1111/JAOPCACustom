@@ -239,7 +239,7 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 		}
 		Predicate<IOreEntry> gaseous;
 		if(JsonUtils.hasField(json, "gaseous")) {
-			gaseous = parsePredicate(JsonUtils.getJsonObject(json, "viscosity"));
+			gaseous = parsePredicate(JsonUtils.getJsonObject(json, "gaseous"));
 		}
 		else {
 			gaseous = entry->densityFunc.applyAsInt(entry)<0;

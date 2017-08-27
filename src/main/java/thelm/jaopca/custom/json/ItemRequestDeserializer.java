@@ -2,6 +2,7 @@ package thelm.jaopca.custom.json;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.function.Predicate;
 import java.util.function.ToDoubleFunction;
 import java.util.function.ToIntFunction;
@@ -26,6 +27,7 @@ import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.MathHelper;
 import thelm.jaopca.api.EnumEntryType;
+import thelm.jaopca.api.EnumOreType;
 import thelm.jaopca.api.IItemRequest;
 import thelm.jaopca.api.IOreEntry;
 import thelm.jaopca.api.ItemEntry;
@@ -70,6 +72,15 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 		if(type == null) {
 			throw new JsonParseException("Unsupported entry type: "+name);
 		}
+		EnumSet<EnumOreType> oreTypes = EnumSet.noneOf(EnumOreType.class);
+		if(JsonUtils.hasField(json, "ore_types")) {
+			for(JsonElement jsonEle : JsonUtils.getJsonArray(json, "ore_types")) {
+				oreTypes.add(oreTypeFromName(JsonUtils.getString(jsonEle, "type")));
+			}
+		}
+		else {
+			oreTypes.add(EnumOreType.INGOT);
+		}
 		ModelResourceLocation itemModelLocation = new ModelResourceLocation("jaopca:"+(type==EnumEntryType.FLUID?"fluid/":"")+Utils.to_under_score(name)+'#'+
 				(type==EnumEntryType.ITEM?"inventory":"normal"));
 		ArrayList<String> blacklist = Lists.<String>newArrayList();
@@ -99,6 +110,7 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 			}
 		}
 		ret.skipWhenGrouped(JsonUtils.getBoolean(json, "skip", false));
+		ret.oreTypes.addAll(oreTypes);
 		return ret;
 	}
 
@@ -355,7 +367,7 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 		case LESS_THAN_OR_EQUAL_TO:
 			return entry->entry.getEnergyModifier()<=JsonUtils.getDouble(json, "value");
 		case GREATER_THAN_OR_EQUAL_TO:
-			return entry-> entry.getEnergyModifier()>=JsonUtils.getDouble(json, "value");
+			return entry->entry.getEnergyModifier()>=JsonUtils.getDouble(json, "value");
 		case TRUE:
 			return entry->true;
 		case FALSE:
@@ -367,6 +379,15 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 
 	static EnumEntryType entryTypeFromName(String name) {
 		for(EnumEntryType type : EnumEntryType.values()) {
+			if(type.name().equalsIgnoreCase(name)) {
+				return type;
+			}
+		}
+		return null;
+	}
+
+	static EnumOreType oreTypeFromName(String name) {
+		for(EnumOreType type : EnumOreType.values()) {
 			if(type.name().equalsIgnoreCase(name)) {
 				return type;
 			}

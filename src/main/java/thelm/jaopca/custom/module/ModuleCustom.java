@@ -21,6 +21,7 @@ public class ModuleCustom extends ModuleBase {
 
 	public static final ArrayList<IItemRequest> REQUESTS = Lists.<IItemRequest>newArrayList();
 	private static final Gson GSON = new GsonBuilder().registerTypeAdapter(IItemRequest.class, new ItemRequestDeserializer()).create();
+	private static File file;
 	private static final ParameterizedType TYPE = new ParameterizedType() {
 		public Type[] getActualTypeArguments() {
 			return new Type[] {IItemRequest.class};
@@ -40,23 +41,34 @@ public class ModuleCustom extends ModuleBase {
 
 	@Override
 	public List<? extends IItemRequest> getItemRequests() {
+		if(file != null) {
+			try {
+				if(file.exists()) {
+					List<IItemRequest> list = GSON.<List<IItemRequest>>fromJson(new FileReader(file), TYPE);
+					if(list != null) {
+						REQUESTS.addAll(list);
+					}
+				}
+				else {
+					FileWriter e = new FileWriter(file);
+					e.close();
+					List<IItemRequest> list = GSON.<List<IItemRequest>>fromJson(new FileReader(file), TYPE);
+					if(list != null) {
+						REQUESTS.addAll(list);
+					}
+				}
+
+				file = null;
+			}
+			catch(Exception e) {
+				e.printStackTrace();
+			}
+		}
 		return REQUESTS;
 	}
 
 	public static void init(File file) {
 		JAOPCAApi.registerModule(new ModuleCustom());
-		try {
-			if(file.exists()) {
-				REQUESTS.addAll(GSON.<List<IItemRequest>>fromJson(new FileReader(file), TYPE));
-			}
-			else {
-				FileWriter e = new FileWriter(file);
-				e.close();
-				REQUESTS.addAll(GSON.<List<IItemRequest>>fromJson(new FileReader(file), TYPE));
-			}
-		}
-		catch(Exception e) {
-			e.printStackTrace();
-		}
+		ModuleCustom.file = file;
 	}
 }

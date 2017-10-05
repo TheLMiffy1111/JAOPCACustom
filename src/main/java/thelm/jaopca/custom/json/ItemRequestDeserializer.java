@@ -30,12 +30,14 @@ import thelm.jaopca.api.EnumEntryType;
 import thelm.jaopca.api.EnumOreType;
 import thelm.jaopca.api.IItemRequest;
 import thelm.jaopca.api.IOreEntry;
+import thelm.jaopca.api.IProperties;
 import thelm.jaopca.api.ItemEntry;
 import thelm.jaopca.api.ItemEntryGroup;
 import thelm.jaopca.api.ToFloatFunction;
 import thelm.jaopca.api.block.BlockProperties;
 import thelm.jaopca.api.fluid.FluidProperties;
 import thelm.jaopca.api.item.ItemProperties;
+import thelm.jaopca.api.utils.JsonUtils;
 import thelm.jaopca.api.utils.Utils;
 import thelm.jaopca.custom.library.EnumMapColor;
 import thelm.jaopca.custom.library.EnumMaterial;
@@ -54,12 +56,12 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 		else if(json.isJsonArray()) {
 			ItemEntryGroup ret = new ItemEntryGroup();
 			for(JsonElement jsonEle : json.getAsJsonArray()) {
-				if(json.isJsonObject()) {
+				if(jsonEle.isJsonObject()) {
 					JsonObject jsonObj = jsonEle.getAsJsonObject();
 					ret.entryList.add(parseItemEntry(jsonObj));
-					return ret;
 				}
 			}
+			return ret;
 		}
 		throw new JsonParseException("Don\'t know how to turn "+json+" into a Item Request");
 	}
@@ -92,22 +94,8 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 		ItemEntry ret = new ItemEntry(type, name, prefix, itemModelLocation, blacklist);
 		if(JsonUtils.hasField(json, "properties")) {
 			JsonObject jsonObj = JsonUtils.getJsonObject(json, "properties");
-			switch(type) {
-			case BLOCK:
-				BlockProperties bppt = parseBlockPpt(jsonObj);
-				ret.setBlockProperties(bppt);
-				break;
-			case ITEM:
-				ItemProperties ippt = parseItemPpt(jsonObj);
-				ret.setItemProperties(ippt);
-				break;
-			case FLUID:
-				FluidProperties fppt = parseFluidPpt(jsonObj);
-				ret.setFluidProperties(fppt);
-				break;
-			case CUSTOM:
-				break;
-			}
+			IProperties ppt = type.pptDeserializer.apply(jsonObj);
+			ret.setProperties(ppt);
 		}
 		ret.skipWhenGrouped(JsonUtils.getBoolean(json, "skip", false));
 		ret.oreTypes.addAll(oreTypes);

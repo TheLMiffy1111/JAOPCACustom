@@ -7,7 +7,8 @@ public enum EnumPredicate {
 	LESS_THAN_OR_EQUAL_TO,
 	GREATER_THAN_OR_EQUAL_TO,
 	TRUE,
-	FALSE;
+	FALSE,
+	CONFIG;
 	
 	public static EnumPredicate fromName(String name) {
 		for(EnumPredicate predicate : EnumPredicate.values()) {

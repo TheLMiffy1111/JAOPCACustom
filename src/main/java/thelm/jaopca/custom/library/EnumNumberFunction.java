@@ -5,7 +5,8 @@ public enum EnumNumberFunction {
 	CONSTANT,
 	POLYNOMIAL,
 	POWER,
-	EXPONENTIAL;
+	EXPONENTIAL,
+	CONFIG;
 
 	public static EnumNumberFunction fromName(String name) {
 		for(EnumNumberFunction function : EnumNumberFunction.values()) {

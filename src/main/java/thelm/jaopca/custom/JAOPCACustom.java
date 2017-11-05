@@ -14,11 +14,11 @@ import thelm.jaopca.custom.module.ModuleCustom;
 		modid = JAOPCACustom.MOD_ID,
 		name = "JAOPCASingularities",
 		version = JAOPCACustom.VERSION,
-		dependencies = "required-before:jaopca@[1.11.2-2.1.3.46,)"
+		dependencies = "required-before:jaopca@[1.11.2-2.1.4.52,)"
 		)
 public class JAOPCACustom {
 	public static final String MOD_ID = "jaopcacustom";
-	public static final String VERSION = "1.11.2-2.1.1.10";
+	public static final String VERSION = "1.11.2-2.1.2.13";
 	@Instance(JAOPCACustom.MOD_ID)
 	public static JAOPCACustom core;
 	public static ModMetadata metadata;

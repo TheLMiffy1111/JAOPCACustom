@@ -45,39 +45,40 @@ import thelm.jaopca.custom.library.EnumNumberFunction;
 import thelm.jaopca.custom.library.EnumPredicate;
 import thelm.jaopca.custom.library.EnumSoundType;
 
-public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
-
+public enum ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
+	INSTANCE;
+	
 	@Override
 	public IItemRequest deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
 		if(json.isJsonObject()) {
 			JsonObject jsonObj = json.getAsJsonObject();
-			return parseItemEntry(jsonObj);
+			return parseItemEntry(jsonObj, context);
 		}
 		else if(json.isJsonArray()) {
 			ItemEntryGroup ret = new ItemEntryGroup();
 			for(JsonElement jsonEle : json.getAsJsonArray()) {
 				if(jsonEle.isJsonObject()) {
 					JsonObject jsonObj = jsonEle.getAsJsonObject();
-					ret.entryList.add(parseItemEntry(jsonObj));
+					ret.entryList.add(parseItemEntry(jsonObj, context));
 				}
 			}
 			return ret;
 		}
-		throw new JsonParseException("Don\'t know how to turn "+json+" into a Item Request");
+		throw new JsonParseException("Don't know how to turn "+json+" into a Item Request");
 	}
 
-	static ItemEntry parseItemEntry(JsonObject json) throws JsonParseException {
+	static ItemEntry parseItemEntry(JsonObject json, JsonDeserializationContext context) throws JsonParseException {
 		String name = JsonUtils.getString(json, "name");
 		String prefix = JsonUtils.getString(json, "prefix", name);
 		String typeName = JsonUtils.getString(json, "type");
-		EnumEntryType type = entryTypeFromName(typeName);
+		EnumEntryType type = EnumEntryType.fromName(typeName);
 		if(type == null) {
-			throw new JsonParseException("Unsupported entry type: "+name);
+			throw new JsonParseException("Unsupported entry type: "+typeName);
 		}
 		EnumSet<EnumOreType> oreTypes = EnumSet.noneOf(EnumOreType.class);
 		if(JsonUtils.hasField(json, "ore_types")) {
 			for(JsonElement jsonEle : JsonUtils.getJsonArray(json, "ore_types")) {
-				oreTypes.add(oreTypeFromName(JsonUtils.getString(jsonEle, "type")));
+				oreTypes.add(EnumOreType.fromName(JsonUtils.getString(jsonEle, "type")));
 			}
 		}
 		else {
@@ -94,7 +95,7 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 		ItemEntry ret = new ItemEntry(type, name, prefix, itemModelLocation, blacklist);
 		if(JsonUtils.hasField(json, "properties")) {
 			JsonObject jsonObj = JsonUtils.getJsonObject(json, "properties");
-			IProperties ppt = type.pptDeserializer.apply(jsonObj);
+			IProperties ppt = type.pptDeserializerContexted.apply(jsonObj, context);
 			ret.setProperties(ppt);
 		}
 		ret.skipWhenGrouped(JsonUtils.getBoolean(json, "skip", false));
@@ -102,42 +103,12 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 		return ret;
 	}
 
-	static BlockProperties parseBlockPpt(JsonObject json) throws JsonParseException {
-		ToFloatFunction<IOreEntry> hardnessFunc;
-		if(JsonUtils.hasField(json, "hardness")) {
-			hardnessFunc = parseFloatFunction(JsonUtils.getJsonObject(json, "hardness"));
-		}
-		else {
-			hardnessFunc = entry->2F;
-		}
-		ToFloatFunction<IOreEntry> resisFunc;
-		if(JsonUtils.hasField(json, "resistance")) {
-			resisFunc = parseFloatFunction(JsonUtils.getJsonObject(json, "resistance"));
-		}
-		else {
-			resisFunc = entry->hardnessFunc.applyAsFloat(entry)*5F;
-		}
-		ToIntFunction<IOreEntry> lgtOpacFunc;
-		if(JsonUtils.hasField(json, "light_opacity")) {
-			lgtOpacFunc = parseIntFunction(JsonUtils.getJsonObject(json, "light_opacity"));
-		}
-		else {
-			lgtOpacFunc = entry->255;
-		}
-		ToFloatFunction<IOreEntry> lgtValFunc;
-		if(JsonUtils.hasField(json, "light_value")) {
-			lgtValFunc = parseFloatFunction(JsonUtils.getJsonObject(json, "light_value"));
-		}
-		else {
-			lgtValFunc = entry->0F;
-		}
-		ToFloatFunction<IOreEntry> slippyFunc;
-		if(JsonUtils.hasField(json, "slipperiness")) {
-			slippyFunc = parseFloatFunction(JsonUtils.getJsonObject(json, "slipperiness"));
-		}
-		else {
-			slippyFunc = entry->0.6F;
-		}
+	static BlockProperties parseBlockPpt(JsonObject json, JsonDeserializationContext context) throws JsonParseException {
+		ToFloatFunction<IOreEntry> hardnessFunc = JsonUtils.deserializeClass(json, "hardness", entry->2F, context, OreFunctionDeserializers.FLOAT_TYPE);
+		ToFloatFunction<IOreEntry> resisFunc = JsonUtils.deserializeClass(json, "resistance", entry->hardnessFunc.applyAsFloat(entry)*5F, context, OreFunctionDeserializers.FLOAT_TYPE);
+		ToIntFunction<IOreEntry> lgtOpacFunc = JsonUtils.deserializeClass(json, "light_opacity", entry->255, context, OreFunctionDeserializers.INT_TYPE);
+		ToFloatFunction<IOreEntry> lgtValFunc = JsonUtils.deserializeClass(json, "light_value", entry->0F, context, OreFunctionDeserializers.FLOAT_TYPE);
+		ToFloatFunction<IOreEntry> slippyFunc = JsonUtils.deserializeClass(json, "slipperiness", entry->0.6F, context, OreFunctionDeserializers.FLOAT_TYPE);
 		Material material = EnumMaterial.fromName(JsonUtils.getString(json, "material", "rock"));
 		MapColor mapColor = material.getMaterialMapColor();
 		if(JsonUtils.isNumber(json, "map_color")) {
@@ -157,20 +128,8 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 		boolean full = JsonUtils.getBoolean(json, "full", true);
 		boolean opaque = JsonUtils.getBoolean(json, "opaque", true);
 		BlockRenderLayer renderLayer = layerFromName(JsonUtils.getString(json, "render_layer", "cutout"));
-		ToIntFunction<IOreEntry> flammabFunc;
-		if(JsonUtils.hasField(json, "flammability")) {
-			flammabFunc = parseIntFunction(JsonUtils.getJsonObject(json, "flammability"));
-		}
-		else {
-			flammabFunc = entry->0;
-		}
-		ToIntFunction<IOreEntry> fireSpdFunc;
-		if(JsonUtils.hasField(json, "fire_spread_speed")) {
-			fireSpdFunc = parseIntFunction(JsonUtils.getJsonObject(json, "fire_spread_speed"));
-		}
-		else {
-			fireSpdFunc = entry->0;
-		}
+		ToIntFunction<IOreEntry> flammabFunc = JsonUtils.deserializeClass(json, "flammability", entry->0, context, OreFunctionDeserializers.INT_TYPE);
+		ToIntFunction<IOreEntry> fireSpdFunc = JsonUtils.deserializeClass(json, "fire_spread_speed", entry->0, context, OreFunctionDeserializers.INT_TYPE);
 		boolean fireSource = JsonUtils.getBoolean(json, "fire_source", false);
 		BlockProperties ppt = new BlockProperties().
 				setHardnessFunc(hardnessFunc).
@@ -197,10 +156,11 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 		return ppt;
 	}
 
-	static ItemProperties parseItemPpt(JsonObject json) throws JsonParseException {
+	static ItemProperties parseItemPpt(JsonObject json, JsonDeserializationContext context) throws JsonParseException {
 		int maxStkSize = JsonUtils.getInt(json, "max_stack_size", 64);
 		boolean full3d = JsonUtils.getBoolean(json, "full3d", false);
 		EnumRarity rarity = rarityFromName(JsonUtils.getString(json, "rarity", "common"));
+		Predicate<IOreEntry> hasEffect = JsonUtils.deserializeClass(json, "has_effect", entry->entry.getHasEffect(), context, OreFunctionDeserializers.BOOLEAN_TYPE);
 		ItemProperties ppt = new ItemProperties().
 				setMaxStackSize(maxStkSize).
 				setFull3D(full3d).
@@ -208,54 +168,18 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 		return ppt;
 	}
 
-	static FluidProperties parseFluidPpt(JsonObject json) throws JsonParseException {
-		ToIntFunction<IOreEntry> luminosFunc;
-		if(JsonUtils.hasField(json, "luminosity")) {
-			luminosFunc = parseIntFunction(JsonUtils.getJsonObject(json, "luminosity"));
-		}
-		else {
-			luminosFunc = entry->0;
-		}
-		ToIntFunction<IOreEntry> densityFunc;
-		if(JsonUtils.hasField(json, "density")) {
-			densityFunc = parseIntFunction(JsonUtils.getJsonObject(json, "density"));
-		}
-		else {
-			densityFunc = entry->1000;
-		}
-		ToIntFunction<IOreEntry> tempFunc;
-		if(JsonUtils.hasField(json, "temperature")) {
-			tempFunc = parseIntFunction(JsonUtils.getJsonObject(json, "temperature"));
-		}
-		else {
-			tempFunc = entry->300;
-		}
-		ToIntFunction<IOreEntry> viscosFunc;
-		if(JsonUtils.hasField(json, "viscosity")) {
-			viscosFunc = parseIntFunction(JsonUtils.getJsonObject(json, "viscosity"));
-		}
-		else {
-			viscosFunc = entry->1000;
-		}
-		Predicate<IOreEntry> gaseous;
-		if(JsonUtils.hasField(json, "gaseous")) {
-			gaseous = parsePredicate(JsonUtils.getJsonObject(json, "gaseous"));
-		}
-		else {
-			gaseous = entry->densityFunc.applyAsInt(entry)<0;
-		}
+	static FluidProperties parseFluidPpt(JsonObject json, JsonDeserializationContext context) throws JsonParseException {
+		ToIntFunction<IOreEntry> luminosFunc = JsonUtils.deserializeClass(json, "luminosity", entry->0, context, OreFunctionDeserializers.INT_TYPE);
+		ToIntFunction<IOreEntry> densityFunc = JsonUtils.deserializeClass(json, "density", entry->1000, context, OreFunctionDeserializers.INT_TYPE);
+		ToIntFunction<IOreEntry> tempFunc = JsonUtils.deserializeClass(json, "temperature", entry->300, context, OreFunctionDeserializers.INT_TYPE);
+		ToIntFunction<IOreEntry> viscosFunc = JsonUtils.deserializeClass(json, "viscosity", entry->1000, context, OreFunctionDeserializers.INT_TYPE);
+		Predicate<IOreEntry> gaseous = JsonUtils.deserializeClass(json, "gaseous", entry->densityFunc.applyAsInt(entry)<0, context, OreFunctionDeserializers.BOOLEAN_TYPE);
 		EnumRarity rarity = rarityFromName(JsonUtils.getString(json, "rarity", "common"));
 		SoundEvent fillSound = SoundEvent.REGISTRY.getObject(new ResourceLocation(JsonUtils.getString(json, "fill_sound", "item.bucket.fill")));
 		SoundEvent emptySound = SoundEvent.REGISTRY.getObject(new ResourceLocation(JsonUtils.getString(json, "empty_sound", "item.bucket.empty")));
 		boolean hasBlock = JsonUtils.getBoolean(json, "has_block", true);
 		Material material = EnumMaterial.fromName(JsonUtils.getString(json, "material", "water"));
-		ToIntFunction<IOreEntry> quantaFunc;
-		if(JsonUtils.hasField(json, "quanta_per_block")) {
-			quantaFunc = parseIntFunction(JsonUtils.getJsonObject(json, "quanta_per_block"));
-		}
-		else {
-			quantaFunc = entry->8;
-		}
+		ToIntFunction<IOreEntry> quantaFunc = JsonUtils.deserializeClass(json, "quanta_per_block", entry->8, context, OreFunctionDeserializers.INT_TYPE);
 		FluidProperties ppt = new FluidProperties().
 				setLuminosityFunc(luminosFunc).
 				setDensityFunc(densityFunc).
@@ -288,99 +212,6 @@ public class ItemRequestDeserializer implements JsonDeserializer<IItemRequest> {
 			return new AxisAlignedBB(adouble[0], adouble[1], adouble[2], adouble[3], adouble[4], adouble[5]);
 		}
 		return fallback;
-	}
-
-	static ToIntFunction<IOreEntry> parseIntFunction(JsonObject json) throws JsonParseException {
-		return entry->(int)parseDoubleFunction(json).applyAsDouble(entry);
-	}
-
-	static ToFloatFunction<IOreEntry> parseFloatFunction(JsonObject json) throws JsonParseException {
-		return entry->(float)parseDoubleFunction(json).applyAsDouble(entry);
-	}
-
-	static ToDoubleFunction<IOreEntry> parseDoubleFunction(JsonObject json) throws JsonParseException {
-		String name = JsonUtils.getString(json, "function");
-		EnumNumberFunction functionType = EnumNumberFunction.fromName(name);
-		if(functionType == null) {
-			throw new JsonParseException("Unsupported function type: "+name);
-		}
-
-		double max = JsonUtils.getDouble(json, "max", Integer.MAX_VALUE);
-		double min = JsonUtils.getDouble(json, "min", Integer.MIN_VALUE);
-
-		switch(functionType) {
-		case CONSTANT:
-			return entry->MathHelper.clamp(JsonUtils.getDouble(json, "value"), min, max);
-		case POLYNOMIAL:
-			return entry->MathHelper.clamp(parsePolynomialFunction(json).applyAsDouble(entry), min, max);
-		case POWER:
-			return entry->MathHelper.clamp(Math.pow(entry.getEnergyModifier(), JsonUtils.getDouble(json, "exponent"))*JsonUtils.getDouble(json, "multiplier", 1D), min, max);
-		case EXPONENTIAL:
-			return entry->MathHelper.clamp(Math.pow(JsonUtils.getDouble(json, "base"), entry.getEnergyModifier())*JsonUtils.getDouble(json, "multiplier", 1D), min, max);
-		}
-
-		throw new JsonParseException("Unsupported function type: "+name);
-	}
-
-	static ToDoubleFunction<IOreEntry> parsePolynomialFunction(JsonObject json) throws JsonParseException {
-		JsonArray jsonArray = JsonUtils.getJsonArray(json, "coefficients");
-
-		double[] coefficients = new double[jsonArray.size()];
-
-		for(int i = 0; i < coefficients.length; ++i) {
-			coefficients[i] = JsonUtils.getDouble(jsonArray.get(i), "coefficients"+"["+i+"]");
-		}
-
-		return entry->{
-			double val = 0;
-			for(int i = 0; i < coefficients.length; ++i) {
-				val += Math.pow(entry.getEnergyModifier(), i)*coefficients[coefficients.length-i+1];
-			}
-			return val;
-		};
-	}
-
-	static Predicate<IOreEntry> parsePredicate(JsonObject json) throws JsonParseException {
-		String name = JsonUtils.getString(json, "predicate");
-		EnumPredicate predicateType = EnumPredicate.fromName(name);
-		if(predicateType == null) {
-			throw new JsonParseException("Unsupported predicate type: "+name);
-		}
-
-		switch(predicateType) {
-		case LESS_THAN:
-			return entry->entry.getEnergyModifier()<JsonUtils.getDouble(json, "value");
-		case GREATER_THAN:
-			return entry->entry.getEnergyModifier()>JsonUtils.getDouble(json, "value");
-		case LESS_THAN_OR_EQUAL_TO:
-			return entry->entry.getEnergyModifier()<=JsonUtils.getDouble(json, "value");
-		case GREATER_THAN_OR_EQUAL_TO:
-			return entry->entry.getEnergyModifier()>=JsonUtils.getDouble(json, "value");
-		case TRUE:
-			return entry->true;
-		case FALSE:
-			return entry->false;
-		}
-
-		throw new JsonParseException("Unsupported predicate type: "+name);
-	}
-
-	static EnumEntryType entryTypeFromName(String name) {
-		for(EnumEntryType type : EnumEntryType.values()) {
-			if(type.name().equalsIgnoreCase(name)) {
-				return type;
-			}
-		}
-		return null;
-	}
-
-	static EnumOreType oreTypeFromName(String name) {
-		for(EnumOreType type : EnumOreType.values()) {
-			if(type.name().equalsIgnoreCase(name)) {
-				return type;
-			}
-		}
-		return null;
 	}
 
 	static EnumRarity rarityFromName(String name) {
